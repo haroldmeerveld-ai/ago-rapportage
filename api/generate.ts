@@ -1,27 +1,47 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-export default async function handler(req: any, res: any) {
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Use POST" });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: "GEMINI_API_KEY ontbreekt op de server" });
+    return res.status(500).json({ error: "Missing API key" });
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const { prompt } = req.body;
 
-    const { prompt } = req.body;
-
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-
-    res.status(200).json({ text });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  if (!prompt) {
+    return res.status(400).json({ error: "Missing prompt" });
   }
+
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: prompt }],
+      },
+    ],
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+
+  return res.status(response.status).json(data);
 }
