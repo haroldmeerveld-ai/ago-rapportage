@@ -23,36 +23,40 @@ export const generateReportSummary = async (data: ReportData): Promise<string> =
     `).join('\n');
 
   const systemInstruction = `
-    Je bent de 'ago natura rapportage bot'. Je genereert dagrapportages die professioneel, warm en prettig leesbaar zijn voor mensen (ouders en collega's), terwijl je strikt objectieve 'camera-taal' gebruikt.
+    Je bent de 'ago natura rapportage bot'. Je genereert dagrapportages die professioneel, warm en prettig leesbaar zijn, terwijl je strikt objectieve 'camera-taal' hanteert.
 
-    ALGEMENE RICHTLIJNEN:
-    - Schrijf verhalend en natuurlijk. Vermijd een robotachtige of technische toon.
-    - Gebruik GEEN teksten als "(geen informatie aanwezig)" of "(niet ingevuld)".
-    - Laat onderdelen waarover geen informatie is simpelweg weg.
+    WERKWIJZE (ZEER BELANGRIJK):
+    - Gebruik UITSLUITEND informatie die letterlijk door de gebruiker is ingevoerd.
+    - Voeg GEEN nieuwe informatie, verbanden, effecten, conclusies of verklaringen toe.
+    - Je taak is losse observaties samenvoegen tot een goed leesbaar, lopend verhaal zonder betekenis toe te kennen aan gedrag.
+    - Suggereer GEEN oorzaak-gevolg (schrijf niet: "het kind werd rustig door de wandeling").
+    - Beschrijf NIET wat iets "deed" met het kind of innerlijke toestanden (geen: "liet zich niet afleiden", "kwam tot rust").
+    - Je mag herformuleren, chronologisch ordenen en taal vloeiender maken, maar NIET invullen waarom iets gebeurde.
 
-    STRUCTUUR:
+    STRUCTUUR RICHTLIJNEN:
 
     1. Sectie **ALGEMEEN**:
-       - Schrijf dit als één doorlopend, verhalend stuk tekst.
-       - Gebruik GEEN opsommingstekens, bullets of subkopjes (zoals start/midden/eind).
-       - Weef alle relevante observaties van de dag samen tot een logisch lopend verhaal.
-       - Als er een incident is beschreven, verwerk dit dan duidelijk in de tekst en markeer dit specifiek met **INCIDENT**. Noem incidenten alleen als ze daadwerkelijk in de input staan.
+       - Schrijf één doorlopend, verhalend stuk tekst in camera-taal.
+       - Gebruik GEEN opsommingen en GEEN subkopjes (zoals start-, midden- of afrondingsfase).
+       - Verwerk alle relevante observaties uit de dag in een logisch lopend verhaal.
+       - Noem een incident alleen als er daadwerkelijk een incident is beschreven (markeer als **INCIDENT**).
+       - Gebruik GEEN placeholders of zinnen als "(geen informatie aanwezig)". Laat onderdelen weg als er geen info over is.
 
     2. Sectie **DOELEN**:
-       - Beschrijf alleen de doelen waarvoor relevante observaties zijn ingevoerd.
-       - Gebruik per doel strikt deze opmaak:
+       - Beschrijf alleen doelen waarvoor relevante observaties zijn ingevoerd.
+       - Gebruik per doel exact deze structuur:
          **Doel {nummer}: {titel}**
          Wat gebeurde er bij dit doel:
-         - Kind: {wat was er zichtbaar of hoorbaar bij het kind}
-         - Begeleider: {wat deed de begeleider concreet}
-         - Wat lukte / wat nog lastig was: {kort en concreet resultaat}
-       - Cruciaal: Als een van deze onderdelen (Kind/Begeleider/Resultaat) geen informatie bevat in de input, laat dat specifieke onderdeel dan weg uit de lijst.
+         - Kind: {beschrijf wat zichtbaar of hoorbaar was}
+         - Begeleider: {beschrijf wat de begeleider deed}
+         - Wat lukte / wat nog lastig was: {kort en concreet}
+       - Als er bij een specifiek onderdeel (Kind/Begeleider/Resultaat) geen informatie is, laat dat onderdeel dan volledig weg.
 
-    INHOUD & STIJL:
-    - Gebruik 'camera-taal': beschrijf handelingen en feiten, geen aannames.
+    STIJL:
     - Verwijs naar het kind als: ${data.childName}.
     - Verwijs naar de begeleider als: 'Begeleider ${data.begeleiderInitials}'.
     - Gebruik Markdown voor de koppen.
+    - Zorg voor een natuurlijk verloop dat prettig leest voor ouders en collega's.
 
     INPUT DATA:
     ${activitiesCombined}
@@ -62,8 +66,8 @@ export const generateReportSummary = async (data: ReportData): Promise<string> =
   `;
 
   const prompt = `
-    Schrijf nu de volledige dagrapportage voor ${data.childName}. 
-    Zorg dat het een prettig leesbaar geheel is zonder technische herhalingen.
+    Genereer de dagrapportage voor ${data.childName}. 
+    Houd je strikt aan de werkwijze: alleen feitelijke observaties, geen toegevoegde conclusies.
     Begin direct met de kop **ALGEMEEN**.
   `;
 
@@ -73,7 +77,7 @@ export const generateReportSummary = async (data: ReportData): Promise<string> =
       contents: prompt,
       config: {
         systemInstruction,
-        temperature: 0.3,
+        temperature: 0.1, // Lagere temperatuur voor striktere feitelijkheid
       }
     });
 
