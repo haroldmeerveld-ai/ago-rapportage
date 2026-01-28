@@ -9,7 +9,7 @@ import { generateReportSummary } from './services/geminiService';
 // Structured validation logic for 'soft_flag_with_learning'
 interface ValidationResult {
   category: 'diagnosis' | 'intention' | 'interpretation';
-  flaggedWords: string[];
+  flaggedWord: string;
 }
 
 const SIGNAL_SUGGESTIONS = [
@@ -18,34 +18,19 @@ const SIGNAL_SUGGESTIONS = [
 
 const VALIDATION_CATEGORIES = {
   interpretation: {
-    pattern: /\b(overprikkeld|gezellig|ontspannen|lastig|druk|humeurig)\b/i,
+    pattern: /\b(overprikkeld|gezellig|ontspannen|lastig|druk|humeurig|fijn|leuk|moeilijk|boos|gefrustreerd|blij|verdrietig|bang|eigenwijs|brutaal|lief|aardig|actief)\b/i,
     message: "Let op – dit is een interpretatie.",
-    tip: "In deze rapportage beschrijven we wat zichtbaar of hoorbaar was.",
-    suggestions: [
-      "Het kind liep meerdere keren weg en keek om zich heen.",
-      "Het kind maakte veel bewegingen en praatte hard.",
-      "Het kind reageerde niet op aanspreken en vroeg om een pauze."
-    ]
+    tip: "In deze rapportage beschrijven we wat zichtbaar of hoorbaar was."
   },
   diagnosis: {
     pattern: /\b(depressie|autisme|autistisch|adhd|trauma|ptss|hechtingsstoornis)\b/i,
     message: "Let op – dit is een diagnose of label.",
-    tip: "Gebruik geen medische termen in deze rapportage.",
-    suggestions: [
-      "Het kind was stil en keek veel naar de grond.",
-      "Het kind gaf korte antwoorden en nam weinig initiatief.",
-      "Het kind trok zich terug en bleef apart zitten."
-    ]
+    tip: "Gebruik geen medische termen in deze rapportage."
   },
   intention: {
     pattern: /\b(wilde niet|had geen zin|deed expres|zocht grenzen op)\b/i,
     message: "Let op – dit beschrijft wat je denkt dat het kind wilde.",
-    tip: "Beschrijf wat je zag of hoorde.",
-    suggestions: [
-      "Het kind zei \"nee\" en deed niet mee.",
-      "Het kind keek toe maar pakte het materiaal niet.",
-      "Het kind liep weg van de activiteit en bleef in zicht."
-    ]
+    tip: "Beschrijf wat je zag of hoorde."
   }
 };
 
@@ -56,21 +41,21 @@ const getValidationResults = (text: string, isIndrukField: boolean = false): Val
   Object.entries(VALIDATION_CATEGORIES).forEach(([key, config]) => {
     const match = text.match(new RegExp(config.pattern, 'gi'));
     if (match) {
-      let filteredWords = Array.from(new Set(match));
+      const uniqueMatches = Array.from(new Set(match.map(m => m.toLowerCase())));
       
-      // IF field is "Signalen - indruk", do not trigger interpretation flag for pre-defined choices
-      if (isIndrukField && key === 'interpretation') {
-        filteredWords = filteredWords.filter(word => 
-          !SIGNAL_SUGGESTIONS.some(suggestion => suggestion.toLowerCase() === word.toLowerCase())
-        );
-      }
-      
-      if (filteredWords.length > 0) {
+      uniqueMatches.forEach(word => {
+        // Indien in het 'Indruk' veld, negeer de interpretatie-vlag voor de voorgestelde woorden
+        if (isIndrukField && key === 'interpretation') {
+          if (SIGNAL_SUGGESTIONS.some(s => s.toLowerCase() === word)) {
+            return;
+          }
+        }
+        
         results.push({
           category: key as any,
-          flaggedWords: filteredWords
+          flaggedWord: word
         });
-      }
+      });
     }
   });
   
@@ -391,6 +376,9 @@ const App: React.FC = () => {
       <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
         {results.map((result, idx) => {
           const config = VALIDATION_CATEGORIES[result.category];
+          const isInterpretation = result.category === 'interpretation';
+          const word = result.flaggedWord;
+          
           return (
             <div key={idx} className="p-5 bg-orange-50/50 border border-orange-200/50 rounded-3xl shadow-sm">
               <div className="flex items-start gap-4">
@@ -399,36 +387,13 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex-1 text-[11px] leading-relaxed text-orange-950">
                   <strong className="block mb-1 font-bold uppercase tracking-tight text-orange-600">
-                    {config.message} <span className="text-orange-900/40 font-normal lowercase tracking-normal italic ml-1">({result.flaggedWords.join(', ')})</span>
+                    {config.message} <span className="bg-orange-100 px-2 py-0.5 rounded-md text-orange-900 border border-orange-200 lowercase tracking-normal italic ml-1">{word}</span>
                   </strong>
-                  <div className="mt-1 font-medium opacity-90 mb-3">{config.tip}</div>
-                  {config.suggestions && (
-                    <div className="space-y-2 border-t border-orange-100 pt-3 mt-3">
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-orange-400 mb-2">Alternatieve leersuggesties:</p>
-                      {config.suggestions.map((suggestion, sIdx) => (
-                        <button
-                          key={sIdx}
-                          onClick={() => {
-                            const currentText = text.trim();
-                            const newText = currentText ? `${currentText}\n\n${suggestion}` : suggestion;
-                            if (fieldName.includes('goal-content-')) {
-                              const goalIndex = parseInt(fieldName.split('-').pop() || '0');
-                              handleGoalChange(goalIndex, 'content', newText);
-                            } else if (fieldName === 'needsSignalsIndruk') {
-                              setFormData(prev => ({ ...prev, [fieldName]: newText }));
-                              setTimeout(() => cameraRef.current?.focus(), 10);
-                            } else {
-                              setFormData(prev => ({ ...prev, [fieldName]: newText }));
-                            }
-                          }}
-                          className="w-full text-left p-3 bg-white hover:bg-orange-100 border border-orange-100 rounded-xl transition-all group relative flex items-center justify-between shadow-sm"
-                        >
-                          <span className="opacity-80 group-hover:opacity-100 pr-8">{suggestion}</span>
-                          <span className="text-[8px] font-bold uppercase text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity absolute right-3">+ Toevoegen</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="mt-2 font-semibold text-orange-900 text-sm leading-tight">
+                    {isInterpretation 
+                      ? `Waaraan zag jij of hoorde jij dat het ${word} was? Beschrijf de concrete acties of observaties.`
+                      : config.tip}
+                  </div>
                 </div>
               </div>
             </div>
@@ -638,7 +603,7 @@ const App: React.FC = () => {
                       <div className="space-y-1 relative border-t border-stone-50 pt-4">
                         {renderRecordingButtons(`goal-content-${index}`, (v) => handleGoalChange(index, 'content', v), goal.content)}
                         <h4 className="text-xs font-bold text-stone-700 mt-2 mb-1 px-1 uppercase tracking-tight">Wat gebeurde er bij dit doel?</h4>
-                        <p className="text-[11px] text-stone-400 leading-relaxed mb-2 px-1">Schrijf kort en concreet wat je vandaag rondom dit doel zag gebeuren bij het kind en wat jouw rol daarin was.</p>
+                        <p className="text-[11px] text-stone-400 leading-relaxed mb-2 px-1">Schrijf kort en concreet what je vandaag rondom dit doel zag gebeuren bij het kind en what jouw rol daarin was.</p>
                         <label className="text-[10px] uppercase tracking-widest text-stone-400 font-bold ml-1">Toelichting bij dit doel</label>
                         <textarea name={`goal-content-${index}`} value={goal.content} onChange={(e) => handleGoalChange(index, 'content', e.target.value)} onKeyDown={handleKeyDown} rows={6} placeholder={"Bijv.\nHet kind: gaf aan wanneer iets te spannend werd en bleef in mijn buurt.\nIk: bleef nabij, benoemde wat er gebeurde en deed samen voor.\nWat lukte / wat nog lastig is: aangeven lukt, zelf reguleren vraagt nog begeleiding."} className="w-full bg-white border border-stone-100 rounded-2xl p-4 text-stone-800 placeholder:text-stone-500 focus:outline-none focus:border-ago-green/30 transition-all text-base font-light resize-none" />
                         {renderValidationFlags(goal.content, `goal-content-${index}`)}
