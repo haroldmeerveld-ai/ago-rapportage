@@ -6,11 +6,7 @@ export const generateReportSummary = async (
 ): Promise<string> => {
 
   // ✅ Vite leest ALLEEN env vars die met VITE_ beginnen
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-
-  if (!apiKey) {
-    throw new Error("An API Key must be set when running in a browser");
-  }
+  
 
   const ai = new GoogleGenAI({
     apiKey: apiKey.trim(),
