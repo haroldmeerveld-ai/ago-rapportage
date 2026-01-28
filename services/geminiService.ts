@@ -1,20 +1,8 @@
-import { GoogleGenAI } from "@google/genai";
 import { ReportData } from "../types";
 
 export const generateReportSummary = async (
   data: ReportData
 ): Promise<string> => {
-
-  // ✅ Vite leest ALLEEN env vars die met VITE_ beginnen
-  
-
-  const ai = new GoogleGenAI({
-    apiKey: apiKey.trim(),
-    httpOptions: {
-      apiVersion: "v1", // ✅ GEEN beta
-    },
-  });
-
   const activitiesCombined = `
 Chronologisch verloop: ${data.activitiesGeneral}
 Start-fase: ${data.activitiesStart}
@@ -38,7 +26,7 @@ Wat gebeurde er bij dit doel:
 `.trim())
     .join("\n\n");
 
-  const systemInstruction = `
+  const prompt = `
 Je schrijft een AGO-rapportage in het Nederlands.
 
 REGELS:
@@ -52,9 +40,7 @@ STRUCTUUR:
 
 **DOELEN**
 (elk doel apart, met kopje)
-`.trim();
 
-  const prompt = `
 **ALGEMEEN**
 ${activitiesCombined}
 
@@ -62,14 +48,22 @@ ${activitiesCombined}
 ${goalsSection}
 `.trim();
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: prompt,
-    config: {
-      systemInstruction,
-      temperature: 0.1,
+  const response = await fetch("/api/generate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({ prompt }),
   });
 
-  return (response.text || "").trim();
+  const dataRes = await response.json();
+
+  const text =
+    dataRes?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+  if (!text) {
+    throw new Error("Geen antwoord van AI ontvangen.");
+  }
+
+  return text.trim();
 };
