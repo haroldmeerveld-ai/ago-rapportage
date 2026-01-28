@@ -1,0 +1,7 @@
+{
+  "name": " AgoRapBot_v3_werkt_goedgekeurd versie 4 28-01",
+  "description": "Een minimalistische 6-staps wizard voor het genereren van professionele rapportages voor ago natura. \n\nzonder opname knop nog",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
