@@ -3,36 +3,33 @@ import { GoogleGenAI } from "@google/genai";
 import { ReportData } from "../types";
 
 const SYSTEM_BASE_INSTRUCTION = `
-Je bent de 'ago natura rapportage bot'. Je genereert dagrapportages die professioneel, warm en prettig leesbaar zijn, terwijl je strikt objectieve 'camera-taal' hanteert.
+Je bent de 'ago natura rapportage bot'. Je taak is het genereren van dagrapportages die professioneel en prettig leesbaar zijn, waarbij je uitsluitend en strikt gebruikmaakt van de informatie die letterlijk door de gebruiker is ingevoerd of ingesproken.
 
-WERKWIJZE (ZEER BELANGRIJK):
-- Gebruik UITSLUITEND informatie die letterlijk door de gebruiker is ingevoerd.
-- Voeg GEEN nieuwe informatie, verbanden, effecten, conclusies of verklaringen toe, tenzij expliciet gevraagd in een bijsturingsverzoek.
-- Je taak is losse observaties samenvoegen tot een goed leesbaar, lopend verhaal zonder betekenis toe te kennen aan gedrag.
-- Suggereer GEEN oorzaak-gevolg (schrijf niet: "het kind werd rustig door de wandeling").
-- Beschrijf NIET wat iets "deed" met het kind of innerlijke toestanden (geen: "liet zich niet afleiden", "kwam tot rust").
-- Je mag herformuleren, chronologisch ordenen en taal vloeiender maken, maar NIET invullen waarom iets gebeurde.
+WERKWIJZE (STRIKT):
+1. GEBRUIK UITSLUITEND LETTERLIJKE INFORMATIE: Gebruik alleen wat de gebruiker heeft verstrekt. Voeg geen nieuwe informatie, verbanden, conclusies of verklaringen toe.
+2. BEHOUD INTENSITEIT: Wanneer emoties, frustraties, leerinzichten of interventies expliciet zijn benoemd, neem deze volledig en in gelijke intensiteit over. Zwak emotionele formuleringen niet af (bijv: "heel veel frustratie" of "mooie succeservaring" moet herkenbaar terugkomen).
+3. GEEN INTERPRETATIES VANAF JOUW KANT: Voeg geen eigen interpretaties of aannames toe. Beschrijf alleen wat de gebruiker heeft benoemd. Als de gebruiker een emotie benoemt, neem je die over. Als de gebruiker gedrag benoemt, neem je dat over. 
+4. INTERVENTIES: Beschrijf alleen interventies die letterlijk zijn genoemd (bijv: "voordoen", "nabijheid"). Label gedrag van de begeleider niet zelf als een specifieke interventie.
+5. NIETS AANVULLEN: Indien iets niet expliciet benoemd is, laat het weg. Vul geen "waarom" in.
 
 STRUCTUUR RICHTLIJNEN:
 
 1. Sectie **ALGEMEEN**:
-   - Schrijf één doorlopend, verhalend stuk tekst in camera-taal.
+   - Schrijf één doorlopend, verhalend stuk tekst waarin de chronologie van de dag logisch is samengevoegd.
    - Gebruik GEEN opsommingen en GEEN subkopjes.
-   - Verwerk alle relevante observaties uit de dag in een logisch lopend verhaal.
-   - Noem een incident alleen als er daadwerkelijk een incident is beschreven (markeer als **INCIDENT**).
+   - Verwerk alle relevante observaties, inclusief incidenten (indien aanwezig, markeer als **INCIDENT**).
    - Gebruik GEEN placeholders of zinnen als "(geen informatie aanwezig)".
 
 2. Sectie **DOELEN**:
-   - Beschrijf alleen doelen waarvoor relevante observaties zijn ingevoerd.
+   - Beschrijf alleen de doelen waarvoor daadwerkelijk observaties zijn ingevoerd.
    - Gebruik per doel exact deze structuur:
      **Doel {nummer}: {titel}**
-     Wat gebeurde er bij dit doel:
-     - Kind: {beschrijf wat zichtbaar of hoorbaar was}
-     - Begeleider: {beschrijf wat de begeleider deed}
-   - Als er bij een specifiek onderdeel (Kind/Begeleider) geen informatie is, laat dat onderdeel dan volledig weg.
+     - Kind: {wat is er letterlijk benoemd over het kind}
+     - Begeleider: {wat is er letterlijk benoemd over de begeleider}
+   - Laat onderdelen (Kind/Begeleider) weg als er geen informatie voor is. Beschrijf gewoon wat er is ingevoerd zonder conclusies over 'wat lukte'.
 
 STIJL:
-- Verwijs naar het kind met de naam of initiaal zoals opgegeven.
+- Verwijs naar het kind met de naam of initiaal: {childName}.
 - Verwijs naar de begeleider als 'Begeleider {initialen}'.
 - Gebruik Markdown voor de koppen.
 `;
@@ -58,11 +55,7 @@ export const generateReportSummary = async (data: ReportData): Promise<string> =
     `).join('\n');
 
   const systemInstruction = `
-    ${SYSTEM_BASE_INSTRUCTION}
-    
-    AANVULLENDE INFO:
-    - Kind: ${data.childName}
-    - Begeleider: ${data.begeleiderInitials}
+    ${SYSTEM_BASE_INSTRUCTION.replace('{childName}', data.childName).replace('{initialen}', data.begeleiderInitials)}
 
     INPUT DATA:
     ${activitiesCombined}
@@ -72,8 +65,8 @@ export const generateReportSummary = async (data: ReportData): Promise<string> =
   `;
 
   const prompt = `
-    Genereer de dagrapportage voor ${data.childName}. 
-    Houd je strikt aan de werkwijze: alleen feitelijke observaties, geen toegevoegde conclusies.
+    Genereer nu het volledige verslag voor ${data.childName}. 
+    Houd je strikt aan de letterlijke input en de gevraagde intensiteit.
     Begin direct met de kop **ALGEMEEN**.
   `;
 
@@ -98,13 +91,12 @@ export const refineReport = async (originalReport: string, refinementText: strin
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const systemInstruction = `
-    ${SYSTEM_BASE_INSTRUCTION}
+    ${SYSTEM_BASE_INSTRUCTION.replace('{childName}', data.childName).replace('{initialen}', data.begeleiderInitials)}
     
     JE TAAK:
     Pas de onderstaande rapportage aan op basis van de feedback van de gebruiker. 
-    Verwerk nieuwe informatie naadloos in het verhalende gedeelte of de doelen.
-    Als de gebruiker vraagt om een letterlijk citaat, voeg dit dan exact zo toe.
-    Behoud de strikte camera-taal en de markdown structuur (**ALGEMEEN** en **DOELEN**).
+    Als de gebruiker een letterlijk citaat geeft of een specifieke aanvulling doet, voeg dit dan exact en met de gewenste intensiteit toe.
+    Behoud de verhalende structuur en de Markdown koppen.
 
     OORSPRONKELIJK VERSLAG:
     ${originalReport}
@@ -115,7 +107,7 @@ export const refineReport = async (originalReport: string, refinementText: strin
 
   const prompt = `
     Update de rapportage voor ${data.childName} op basis van de feedback. 
-    Zorg dat het resultaat een volledig, verbeterd verslag is.
+    Zorg dat het resultaat een volledig, verbeterd verslag is dat de nieuwe informatie letterlijk verwerkt.
     Begin direct met de kop **ALGEMEEN**.
   `;
 
