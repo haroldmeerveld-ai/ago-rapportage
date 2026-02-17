@@ -4,7 +4,7 @@ import { Layout } from './components/Layout';
 import { StepIndicator } from './components/StepIndicator';
 import { WIZARD_STEPS, INITIAL_DATA, CHILD_NAME_SUGGESTIONS, INITIALS_SUGGESTIONS } from './constants';
 import { ReportData, GoalEntry } from './types';
-import { generateReportSummary } from './services/geminiService';
+import { generateReportSummary, refineReport } from './services/geminiService';
 
 // Structured validation logic for 'soft_flag_with_learning'
 interface ValidationResult {
@@ -128,6 +128,8 @@ const App: React.FC = () => {
   const [noSpecialties, setNoSpecialties] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedReport, setGeneratedReport] = useState<string | null>(null);
+  const [refinementText, setRefinementText] = useState('');
+  const [isRefining, setIsRefining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -144,6 +146,7 @@ const App: React.FC = () => {
   const suggestionRef = useRef<HTMLDivElement>(null);
   const nextBtnRef = useRef<HTMLButtonElement>(null);
   const reflectionRef = useRef<HTMLTextAreaElement>(null);
+  const reportTopRef = useRef<HTMLDivElement>(null);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isUserStoppingRef = useRef<boolean>(false);
@@ -282,6 +285,22 @@ const App: React.FC = () => {
     setActiveSuggestionField(null);
   };
 
+  const handleRefine = async () => {
+    if (!refinementText.trim() || !generatedReport || isRefining) return;
+    setIsRefining(true);
+    setError(null);
+    try {
+      const updated = await refineReport(generatedReport, refinementText, formData);
+      setGeneratedReport(updated);
+      setRefinementText('');
+      reportTopRef.current?.scrollIntoView({ behavior: 'smooth' });
+    } catch (err: any) {
+      setError(err.message || "Bijsturen mislukt.");
+    } finally {
+      setIsRefining(false);
+    }
+  };
+
   const selectSuggestion = (field: 'childName', value: string) => {
     setCombinedStartValue(value + ' ');
     setActiveSuggestionField(null);
@@ -336,6 +355,7 @@ const App: React.FC = () => {
     setNoSpecialties(false);
     setCurrentStepIndex(0);
     setGeneratedReport(null);
+    setRefinementText('');
     setError(null);
     setCopyFeedback(null);
     setActiveSuggestionField(null);
@@ -425,7 +445,7 @@ const App: React.FC = () => {
     <Layout>
       {generatedReport ? (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="flex justify-between items-center mb-8">
+          <div ref={reportTopRef} className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-light text-stone-800">Concept Verslag</h2>
             <button onClick={resetWizard} className="text-stone-400 hover:text-red-400 transition-colors text-xs uppercase tracking-widest font-medium">Annuleren & Wissen</button>
           </div>
@@ -433,8 +453,46 @@ const App: React.FC = () => {
             <div className="absolute top-0 left-0 w-1 h-full bg-ago-green/20"></div>
             {renderFormattedReport(generatedReport)}
           </div>
+
+          <div className="mt-12 pt-12 border-t border-stone-100 space-y-6">
+            <div className="space-y-4">
+              <label className="text-sm font-semibold text-stone-700 flex items-center gap-2">
+                <svg className="text-ago-green" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                Rapportage bijsturen of aanvullen?
+              </label>
+              <p className="text-[11px] text-stone-400 leading-relaxed italic">Mis je iets? Of wil je een specifieke zin toevoegen? Beschrijf het hieronder en de assistent past het verslag aan.</p>
+              <div className="relative">
+                {renderRecordingButtons('refinement', (v) => setRefinementText(v), refinementText)}
+                <textarea 
+                  value={refinementText} 
+                  onChange={(e) => setRefinementText(e.target.value)}
+                  placeholder="Bijv: Voeg toe dat het erg koud was en Saar hier last van had..."
+                  rows={3}
+                  className="w-full bg-stone-50/50 border border-stone-100 rounded-2xl p-5 text-stone-800 placeholder:text-stone-400 focus:outline-none focus:border-ago-green/30 transition-all text-base font-light resize-none"
+                />
+              </div>
+              <button 
+                onClick={handleRefine}
+                disabled={!refinementText.trim() || isRefining}
+                className={`w-full py-4 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-2 ${!refinementText.trim() || isRefining ? 'bg-stone-100 text-stone-300' : 'bg-stone-800 text-white hover:bg-black active:scale-95'}`}
+              >
+                {isRefining ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Aanpassen...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    Update verslag
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
           <div className="mt-10">
-             <button onClick={handleFinalCopy} disabled={!!copyFeedback} className={`w-full py-5 px-6 rounded-2xl font-bold uppercase text-[12px] tracking-[0.2em] transition-all shadow-xl active:scale-[0.98] ${copyFeedback ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-ago-green text-white hover:bg-ago-green-dark shadow-ago-green/20'}`}>
+             <button onClick={handleFinalCopy} disabled={!!copyFeedback || isRefining} className={`w-full py-5 px-6 rounded-2xl font-bold uppercase text-[12px] tracking-[0.2em] transition-all shadow-xl active:scale-[0.98] ${copyFeedback ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-ago-green text-white hover:bg-ago-green-dark shadow-ago-green/20'}`}>
                 {copyFeedback || "Kopieer naar klembord & sluit"}
              </button>
           </div>
@@ -605,7 +663,7 @@ const App: React.FC = () => {
                         <h4 className="text-xs font-bold text-stone-700 mt-2 mb-1 px-1 uppercase tracking-tight">Wat gebeurde er bij dit doel?</h4>
                         <p className="text-[11px] text-stone-400 leading-relaxed mb-2 px-1">Schrijf kort en concreet what je vandaag rondom dit doel zag gebeuren bij het kind en what jouw rol daarin was.</p>
                         <label className="text-[10px] uppercase tracking-widest text-stone-400 font-bold ml-1">Toelichting bij dit doel</label>
-                        <textarea name={`goal-content-${index}`} value={goal.content} onChange={(e) => handleGoalChange(index, 'content', e.target.value)} onKeyDown={handleKeyDown} rows={6} placeholder={"Bijv.\nHet kind: gaf aan wanneer iets te spannend werd en bleef in mijn buurt.\nIk: bleef nabij, benoemde wat er gebeurde en deed samen voor.\nWat lukte / wat nog lastig is: aangeven lukt, zelf reguleren vraagt nog begeleiding."} className="w-full bg-white border border-stone-100 rounded-2xl p-4 text-stone-800 placeholder:text-stone-500 focus:outline-none focus:border-ago-green/30 transition-all text-base font-light resize-none" />
+                        <textarea name={`goal-content-${index}`} value={goal.content} onChange={(e) => handleGoalChange(index, 'content', e.target.value)} onKeyDown={handleKeyDown} rows={6} placeholder={"Bijv.\nHet kind: gaf aan wanneer iets te spannend werd en bleef in mijn buurt.\nIk: bleef nabij, benoemde wat er gebeurde en deed samen voor."} className="w-full bg-white border border-stone-100 rounded-2xl p-4 text-stone-800 placeholder:text-stone-500 focus:outline-none focus:border-ago-green/30 transition-all text-base font-light resize-none" />
                         {renderValidationFlags(goal.content, `goal-content-${index}`)}
                       </div>
                     </div>
